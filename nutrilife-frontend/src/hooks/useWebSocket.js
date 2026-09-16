@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs.min.js';
+import { WS_URL } from '../services/api';
 
 export default function useWebSocket(userEmail) {
   const [connected, setConnected] = useState(false);
@@ -11,28 +12,18 @@ export default function useWebSocket(userEmail) {
     if (!userEmail) return;
 
     const client = new Client({
-      webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+      webSocketFactory: () => new SockJS(WS_URL),
       reconnectDelay: 5000,
       onConnect: () => {
         setConnected(true);
-        console.log('WebSocket connected!');
-
         // Subscribe to live nutrition updates
-        client.subscribe(
-          `/topic/nutrition/${userEmail}`,
-          (message) => {
-            const update = JSON.parse(message.body);
-            setNutritionUpdate(update);
-          }
-        );
+        client.subscribe(`/topic/nutrition/${userEmail}`, (message) => {
+          setNutritionUpdate(JSON.parse(message.body));
+        });
       },
-      onDisconnect: () => {
-        setConnected(false);
-        console.log('WebSocket disconnected');
-      },
-      onStompError: (error) => {
-        console.error('STOMP error:', error);
-      }
+      onDisconnect: () => setConnected(false),
+      onWebSocketClose: () => setConnected(false),
+      onStompError: (error) => console.error('STOMP error:', error)
     });
 
     client.activate();
@@ -45,10 +36,7 @@ export default function useWebSocket(userEmail) {
 
   const sendMessage = (destination, body) => {
     if (clientRef.current?.connected) {
-      clientRef.current.publish({
-        destination,
-        body: JSON.stringify(body)
-      });
+      clientRef.current.publish({ destination, body: JSON.stringify(body) });
     }
   };
 

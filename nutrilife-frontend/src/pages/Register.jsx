@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAppStore from '../store/appStore';
+import { apiFetch } from '../services/api';
+import { Alert, Button, Field, Input } from '../components/ui';
+import AuthSide from '../components/AuthSide';
 
 export default function Register() {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
@@ -14,11 +17,7 @@ export default function Register() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('http://localhost:8080/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
+      const response = await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(form) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || 'Registration failed');
@@ -26,37 +25,40 @@ export default function Register() {
       }
       login({ name: data.name, email: data.email, role: data.role }, data.token);
       navigate('/dashboard');
-    } catch (err) {
-      setError('Cannot connect to server. Is Spring Boot running?');
+    } catch {
+      setError('Cannot connect to the server. Please try again in a moment.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: '0 16px' }}>
-      <h2 style={{ marginBottom: 8 }}>🥗 NutriLife</h2>
-      <h3 style={{ marginBottom: 24, fontWeight: 400 }}>Create your account</h3>
-      {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <input type="text" placeholder="Full name" value={form.name}
-          onChange={e => setForm({...form, name: e.target.value})}
-          required
-          style={{ display: 'block', width: '100%', marginBottom: 12, padding: 10, boxSizing: 'border-box', borderRadius: 6, border: '1px solid #ddd' }} />
-        <input type="email" placeholder="Email" value={form.email}
-          onChange={e => setForm({...form, email: e.target.value})}
-          required
-          style={{ display: 'block', width: '100%', marginBottom: 12, padding: 10, boxSizing: 'border-box', borderRadius: 6, border: '1px solid #ddd' }} />
-        <input type="password" placeholder="Password" value={form.password}
-          onChange={e => setForm({...form, password: e.target.value})}
-          required
-          style={{ display: 'block', width: '100%', marginBottom: 16, padding: 10, boxSizing: 'border-box', borderRadius: 6, border: '1px solid #ddd' }} />
-        <button type="submit" disabled={loading}
-          style={{ width: '100%', padding: 10, background: '#4CAF50', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 15 }}>
-          {loading ? 'Creating account...' : 'Create account'}
-        </button>
-      </form>
-      <p style={{ marginTop: 16 }}>Already have an account? <Link to="/login">Login</Link></p>
+    <div className="auth">
+      <AuthSide />
+      <div className="auth-form">
+        <div className="auth-card">
+          <div className="brand" style={{ padding: 0 }}><span className="brand-mark">🌿</span> NutriLife</div>
+          <h1>Create your account</h1>
+          <p className="sub">Free, and it takes 20 seconds.</p>
+          <Alert>{error}</Alert>
+          <form onSubmit={handleSubmit}>
+            <Field label="Full name">
+              <Input placeholder="Jo Peruri" value={form.name} autoComplete="name"
+                onChange={e => setForm({ ...form, name: e.target.value })} required />
+            </Field>
+            <Field label="Email">
+              <Input type="email" placeholder="you@example.com" value={form.email} autoComplete="email"
+                onChange={e => setForm({ ...form, email: e.target.value })} required />
+            </Field>
+            <Field label="Password">
+              <Input type="password" placeholder="At least 6 characters" value={form.password} autoComplete="new-password"
+                onChange={e => setForm({ ...form, password: e.target.value })} required minLength={6} />
+            </Field>
+            <Button type="submit" block loading={loading}>{loading ? 'Creating account…' : 'Create account'}</Button>
+          </form>
+          <p className="mt muted small">Already have an account? <Link to="/login">Sign in</Link></p>
+        </div>
+      </div>
     </div>
   );
 }

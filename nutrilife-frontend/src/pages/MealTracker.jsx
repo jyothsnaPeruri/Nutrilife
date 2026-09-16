@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../services/api';
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, PageHeader, Select, Stat, Textarea } from '../components/ui';
 
 const MEAL_TYPES = ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'];
+const TYPE_LABEL = { BREAKFAST: 'Breakfast', LUNCH: 'Lunch', DINNER: 'Dinner', SNACK: 'Snack' };
+const TYPE_ICON = { BREAKFAST: '🌅', LUNCH: '☀️', DINNER: '🌙', SNACK: '🍎' };
 
 const emptyForm = {
   mealName: '', mealType: 'BREAKFAST',
@@ -16,36 +19,29 @@ export default function MealTracker() {
   const [editId, setEditId] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
 
   const fetchData = async () => {
-    const [mealsRes, summaryRes] = await Promise.all([
-      fetch('http://localhost:8080/api/meals/today', { headers }),
-      fetch('http://localhost:8080/api/meals/summary', { headers })
-    ]);
-    setMeals(await mealsRes.json());
-    setSummary(await summaryRes.json());
+    try {
+      const [mealsRes, summaryRes] = await Promise.all([apiFetch('/meals/today'), apiFetch('/meals/summary')]);
+      const m = await mealsRes.json();
+      setMeals(Array.isArray(m) ? m : []);
+      setSummary(await summaryRes.json());
+    } catch {
+      setError('Could not load meals');
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const url = editId
-        ? `http://localhost:8080/api/meals/${editId}`
-        : 'http://localhost:8080/api/meals';
-      const method = editId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method, headers,
+      const res = await apiFetch(editId ? `/meals/${editId}` : '/meals', {
+        method: editId ? 'PUT' : 'POST',
         body: JSON.stringify({
           ...form,
           calories: Number(form.calories),
@@ -73,145 +69,92 @@ export default function MealTracker() {
   const handleEdit = (meal) => {
     setEditId(meal.id);
     setForm({
-      mealName: meal.mealName,
-      mealType: meal.mealType,
-      calories: meal.calories,
-      protein: meal.protein,
-      carbs: meal.carbs,
-      fat: meal.fat,
-      fiber: meal.fiber,
-      notes: meal.notes || ''
+      mealName: meal.mealName, mealType: meal.mealType,
+      calories: meal.calories, protein: meal.protein, carbs: meal.carbs,
+      fat: meal.fat, fiber: meal.fiber, notes: meal.notes || ''
     });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this meal?')) return;
-    await fetch(`http://localhost:8080/api/meals/${id}`, {
-      method: 'DELETE', headers
-    });
+    await apiFetch(`/meals/${id}`, { method: 'DELETE' });
     fetchData();
   };
 
-  const inp = {
-    padding: '8px 10px', borderRadius: 6,
-    border: '1px solid #ddd', width: '100%',
-    boxSizing: 'border-box', marginBottom: 10
-  };
+  const cancelEdit = () => { setEditId(null); setForm(emptyForm); };
 
   return (
-    <div style={{ maxWidth: 900, margin: '30px auto', padding: '0 16px' }}>
+    <>
+      <PageHeader title="Meals" subtitle="Log what you eat and watch your macros add up." />
+      <Alert>{error}</Alert>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2 style={{ margin: 0 }}>🥗 Meal Tracker</h2>
-        <button onClick={() => navigate('/dashboard')}
-          style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #ddd', cursor: 'pointer' }}>
-          ← Dashboard
-        </button>
-      </div>
-
-      {/* Summary Cards */}
       {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 28 }}>
-          {[
-            { label: 'Calories', value: summary.totalCalories.toFixed(0), unit: 'kcal', color: '#FF6B6B' },
-            { label: 'Protein', value: summary.totalProtein.toFixed(1), unit: 'g', color: '#4ECDC4' },
-            { label: 'Carbs', value: summary.totalCarbs.toFixed(1), unit: 'g', color: '#45B7D1' },
-            { label: 'Fat', value: summary.totalFat.toFixed(1), unit: 'g', color: '#96CEB4' },
-            { label: 'Fiber', value: summary.totalFiber.toFixed(1), unit: 'g', color: '#FFEAA7' },
-            { label: 'Meals', value: summary.totalMeals, unit: 'logged', color: '#DDA0DD' },
-          ].map(s => (
-            <div key={s.label} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: 14, textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{s.label}</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: '#aaa' }}>{s.unit}</div>
-            </div>
-          ))}
+        <div className="grid grid-auto mb">
+          <Stat compact label="Calories" value={Number(summary.totalCalories).toFixed(0)} unit="kcal" color="var(--cal)" />
+          <Stat compact label="Protein" value={Number(summary.totalProtein).toFixed(1)} unit="g" color="var(--protein)" />
+          <Stat compact label="Carbs" value={Number(summary.totalCarbs).toFixed(1)} unit="g" color="var(--carbs)" />
+          <Stat compact label="Fat" value={Number(summary.totalFat).toFixed(1)} unit="g" color="var(--fat)" />
+          <Stat compact label="Fibre" value={Number(summary.totalFiber).toFixed(1)} unit="g" color="var(--fiber)" />
+          <Stat compact label="Meals" value={summary.totalMeals} color="var(--brand)" />
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-
-        {/* Log Meal Form */}
-        <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 20 }}>
-          <h3 style={{ margin: '0 0 16px' }}>{editId ? '✏️ Edit Meal' : '➕ Log a Meal'}</h3>
-          {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
-          <form onSubmit={handleSubmit}>
-            <input style={inp} placeholder="Meal name (e.g. Oatmeal)"
-              value={form.mealName} onChange={e => setForm({...form, mealName: e.target.value})} required />
-            <select style={inp} value={form.mealType}
-              onChange={e => setForm({...form, mealType: e.target.value})}>
-              {MEAL_TYPES.map(t => <option key={t}>{t}</option>)}
-            </select>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <input style={inp} type="number" placeholder="Calories (kcal)"
-                value={form.calories} onChange={e => setForm({...form, calories: e.target.value})} required min="0" />
-              <input style={inp} type="number" placeholder="Protein (g)"
-                value={form.protein} onChange={e => setForm({...form, protein: e.target.value})} min="0" />
-              <input style={inp} type="number" placeholder="Carbs (g)"
-                value={form.carbs} onChange={e => setForm({...form, carbs: e.target.value})} min="0" />
-              <input style={inp} type="number" placeholder="Fat (g)"
-                value={form.fat} onChange={e => setForm({...form, fat: e.target.value})} min="0" />
-              <input style={inp} type="number" placeholder="Fiber (g)"
-                value={form.fiber} onChange={e => setForm({...form, fiber: e.target.value})} min="0" />
+      <div className="grid grid-2">
+        <Card title={editId ? 'Edit meal' : 'Log a meal'} action={editId && <Badge color="var(--warn)">Editing</Badge>}>
+          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
+            <Field label="Meal name">
+              <Input placeholder="e.g. Oats with banana" value={form.mealName} onChange={set('mealName')} required />
+            </Field>
+            <Field label="Type">
+              <Select value={form.mealType} onChange={set('mealType')}>
+                {MEAL_TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+              </Select>
+            </Field>
+            <div className="form-grid">
+              <Field label="Calories (kcal)"><Input type="number" min="0" value={form.calories} onChange={set('calories')} required /></Field>
+              <Field label="Protein (g)"><Input type="number" min="0" step="0.1" value={form.protein} onChange={set('protein')} /></Field>
+              <Field label="Carbs (g)"><Input type="number" min="0" step="0.1" value={form.carbs} onChange={set('carbs')} /></Field>
+              <Field label="Fat (g)"><Input type="number" min="0" step="0.1" value={form.fat} onChange={set('fat')} /></Field>
+              <Field label="Fibre (g)"><Input type="number" min="0" step="0.1" value={form.fiber} onChange={set('fiber')} /></Field>
             </div>
-            <textarea style={{...inp, height: 60, resize: 'vertical'}} placeholder="Notes (optional)"
-              value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" disabled={loading}
-                style={{ flex: 1, padding: 10, background: '#4CAF50', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-                {loading ? 'Saving...' : editId ? 'Update Meal' : 'Log Meal'}
-              </button>
-              {editId && (
-                <button type="button" onClick={() => { setEditId(null); setForm(emptyForm); }}
-                  style={{ padding: '10px 16px', borderRadius: 6, border: '1px solid #ddd', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-              )}
+            <Field label="Notes (optional)">
+              <Textarea placeholder="Anything worth remembering" value={form.notes} onChange={set('notes')} />
+            </Field>
+            <div className="form-row">
+              <Button type="submit" loading={loading} style={{ flex: 1 }}>{editId ? 'Update meal' : 'Log meal'}</Button>
+              {editId && <Button type="button" variant="ghost" onClick={cancelEdit}>Cancel</Button>}
             </div>
           </form>
-        </div>
+        </Card>
 
-        {/* Today's Meals List */}
-        <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 20 }}>
-          <h3 style={{ margin: '0 0 16px' }}>📋 Today's Meals</h3>
+        <Card title="Today's meals" action={<span className="muted small">{meals.length} logged</span>}>
           {meals.length === 0 ? (
-            <p style={{ color: '#aaa', textAlign: 'center', marginTop: 40 }}>No meals logged today yet.</p>
+            <EmptyState icon="🍽️" title="Nothing logged yet" text="Your first meal of the day goes here." />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
+            <div className="list scroll">
               {meals.map(meal => (
-                <div key={meal.id} style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <span style={{ fontWeight: 600 }}>{meal.mealName}</span>
-                      <span style={{ marginLeft: 8, fontSize: 11, background: '#f0f7f0', color: '#4CAF50', padding: '2px 8px', borderRadius: 10 }}>
-                        {meal.mealType}
-                      </span>
+                <div key={meal.id} className="item">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="title">{TYPE_ICON[meal.mealType]} {meal.mealName} <Badge>{TYPE_LABEL[meal.mealType] || meal.mealType}</Badge></div>
+                    <div className="meta">
+                      <span>🔥 {meal.calories} kcal</span>
+                      <span>💪 {meal.protein}g protein</span>
+                      <span>🍞 {meal.carbs}g carbs</span>
+                      <span>🧈 {meal.fat}g fat</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => handleEdit(meal)}
-                        style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #ddd', cursor: 'pointer', fontSize: 12 }}>
-                        Edit
-                      </button>
-                      <button onClick={() => handleDelete(meal.id)}
-                        style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid #ffcccc', color: '#e53935', background: '#fff5f5', cursor: 'pointer', fontSize: 12 }}>
-                        Delete
-                      </button>
-                    </div>
+                    {meal.notes && <div className="note">{meal.notes}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 12, color: '#888' }}>
-                    <span>🔥 {meal.calories} kcal</span>
-                    <span>💪 {meal.protein}g protein</span>
-                    <span>🍞 {meal.carbs}g carbs</span>
-                    <span>🧈 {meal.fat}g fat</span>
+                  <div className="buttons">
+                    <Button size="sm" variant="ghost" onClick={() => handleEdit(meal)}>Edit</Button>
+                    <Button size="sm" variant="danger" onClick={() => handleDelete(meal.id)}>Delete</Button>
                   </div>
-                  {meal.notes && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#aaa' }}>{meal.notes}</p>}
                 </div>
               ))}
             </div>
           )}
-        </div>
+        </Card>
       </div>
-    </div>
+    </>
   );
 }

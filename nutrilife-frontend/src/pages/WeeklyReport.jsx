@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import useAppStore from '../store/appStore';
-import useWebSocket from '../hooks/useWebSocket';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { apiFetch } from '../services/api';
+import { Alert, Button, Card, EmptyState, PageHeader, fmtDate } from '../components/ui';
 
 export default function WeeklyReport() {
   const [reports, setReports] = useState([]);
@@ -9,20 +9,11 @@ export default function WeeklyReport() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { user } = useAppStore();
-  const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const { connected } = useWebSocket(user?.email);
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
 
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8080/api/reports', { headers });
+      const res = await apiFetch('/reports');
       const data = await res.json();
       setReports(Array.isArray(data) ? data : []);
     } catch {
@@ -39,14 +30,12 @@ export default function WeeklyReport() {
     setError('');
     setSuccess('');
     try {
-      const res = await fetch('http://localhost:8080/api/reports/generate', {
-        method: 'POST', headers
-      });
+      const res = await apiFetch('/reports/generate', { method: 'POST' });
       if (!res.ok) {
         setError('Failed to generate report');
         return;
       }
-      setSuccess('Report generated successfully! Check your email too.');
+      setSuccess('Report generated — it has been emailed to you as well.');
       fetchReports();
     } catch {
       setError('Cannot connect to server');
@@ -55,152 +44,81 @@ export default function WeeklyReport() {
     }
   };
 
-  const formatDate = (date) => {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric'
-    });
-  };
+  // Oldest → newest for the trend line
+  const trend = [...reports].reverse().map((r, i) => ({ week: `W${i + 1}`, pct: Number(r.goalAchievementPercent) || 0 }));
 
   return (
-    <div style={{ maxWidth: 800, margin: '30px auto', padding: '0 16px' }}>
+    <>
+      <PageHeader
+        title="Weekly AI report"
+        subtitle="Your week, summarised and coached by AI. Generated every Sunday, or on demand."
+        actions={<Button onClick={generateReport} loading={generating}>{generating ? 'Generating…' : '✨ Generate now'}</Button>}
+      />
+      <Alert>{error}</Alert>
+      <Alert type="success">{success}</Alert>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>🤖 Weekly AI Report</h2>
-          <p style={{ margin: '4px 0 0', color: '#888', fontSize: 13 }}>
-            Personalized feedback generated every Sunday
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={generateReport} disabled={generating}
-            style={{
-              padding: '8px 16px', borderRadius: 6,
-              background: '#4CAF50', color: '#fff',
-              border: 'none', cursor: 'pointer', fontWeight: 600
-            }}>
-            {generating ? '⏳ Generating...' : '✨ Generate Now'}
-          </button>
-          <button onClick={() => navigate('/dashboard')}
-            style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #ddd', cursor: 'pointer' }}>
-            ← Dashboard
-          </button>
-        </div>
-      </div>
-
-      {error && <p style={{ color: 'red', marginBottom: 12 }}>{error}</p>}
-      {success && (
-        <div style={{ background: '#f0fff0', border: '1px solid #4CAF50', borderRadius: 8, padding: 12, marginBottom: 16 }}>
-          <p style={{ margin: 0, color: '#4CAF50', fontWeight: 600 }}>✅ {success}</p>
-        </div>
-      )}
-
-      {/* Generating state */}
       {generating && (
-        <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 32, textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🤖</div>
-          <h3 style={{ margin: '0 0 8px' }}>AI is analyzing your week...</h3>
-          <p style={{ color: '#888', margin: 0 }}>This takes about 10-15 seconds</p>
-          <div style={{ marginTop: 16, background: '#f0f0f0', borderRadius: 10, height: 6, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', background: '#4CAF50', borderRadius: 10,
-              animation: 'loading 2s ease-in-out infinite',
-              width: '60%'
-            }} />
-          </div>
-        </div>
+        <Card>
+          <EmptyState icon="🤖" title="Reading your week…" text="Meals, water and workouts are being analysed. This takes about 10–15 seconds." />
+        </Card>
       )}
 
-      {/* Reports list */}
+      {trend.length > 1 && (
+        <Card title="Goal achievement trend">
+          <div style={{ height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trend} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="week" tick={{ fill: 'var(--muted)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fill: 'var(--muted)', fontSize: 12 }} axisLine={false} tickLine={false} unit="%" />
+                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 13 }} />
+                <Line type="monotone" dataKey="pct" name="Goals hit" stroke="var(--brand)" strokeWidth={2.5} dot={{ r: 4, fill: 'var(--brand)' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
       {loading ? (
-        <p style={{ textAlign: 'center', color: '#aaa' }}>Loading reports...</p>
-      ) : reports.length === 0 ? (
-        <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-          <h3 style={{ margin: '0 0 8px' }}>No reports yet</h3>
-          <p style={{ color: '#888', margin: '0 0 20px' }}>
-            Log your meals, water, and workouts for a week, then generate your first AI report!
-          </p>
-          <button onClick={generateReport} disabled={generating}
-            style={{
-              padding: '12px 24px', borderRadius: 8,
-              background: '#4CAF50', color: '#fff',
-              border: 'none', cursor: 'pointer', fontSize: 15
-            }}>
-            ✨ Generate My First Report
-          </button>
-        </div>
+        <p className="muted" style={{ textAlign: 'center' }}>Loading reports…</p>
+      ) : reports.length === 0 && !generating ? (
+        <Card>
+          <EmptyState icon="📊" title="No reports yet" text="Log meals, water and workouts for a few days, then generate your first report."
+            action={<Button onClick={generateReport}>✨ Generate my first report</Button>} />
+        </Card>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="list" style={{ gap: 16 }}>
           {reports.map((report, idx) => (
-            <div key={report.id} style={{
-              background: '#fff', border: '1px solid #eee',
-              borderRadius: 16, overflow: 'hidden',
-              boxShadow: idx === 0 ? '0 2px 12px rgba(76,175,80,0.1)' : 'none'
-            }}>
-              {/* Report header */}
-              <div style={{
-                background: idx === 0 ? '#4CAF50' : '#f9f9f9',
-                padding: '16px 20px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-              }}>
+            <Card key={report.id} style={{ padding: 16 }}>
+              <div className={`report-head ${idx === 0 ? 'latest' : ''}`}>
                 <div>
-                  <h3 style={{ margin: 0, color: idx === 0 ? '#fff' : '#333' }}>
-                    {idx === 0 ? '⭐ Latest Report' : `Report #${reports.length - idx}`}
-                  </h3>
-                  <p style={{ margin: '4px 0 0', fontSize: 13, color: idx === 0 ? '#e8f5e9' : '#888' }}>
-                    {formatDate(report.weekStart)} — {formatDate(report.weekEnd)}
-                  </p>
+                  <h3 style={{ fontSize: 16 }}>{idx === 0 ? '⭐ Latest report' : `Report #${reports.length - idx}`}</h3>
+                  <p className="small" style={{ opacity: 0.85 }}>{fmtDate(report.weekStart)} — {fmtDate(report.weekEnd)}</p>
                 </div>
-                <div style={{
-                  background: idx === 0 ? 'rgba(255,255,255,0.2)' : '#fff',
-                  borderRadius: 10, padding: '8px 16px', textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: idx === 0 ? '#fff' : '#4CAF50' }}>
-                    {report.goalAchievementPercent}%
-                  </div>
-                  <div style={{ fontSize: 11, color: idx === 0 ? '#e8f5e9' : '#888' }}>goal achieved</div>
-                </div>
+                <div className="pct"><b>{report.goalAchievementPercent}%</b><small>goals hit</small></div>
               </div>
 
-              {/* Stats row */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: 0, borderBottom: '1px solid #f0f0f0'
-              }}>
+              <div className="grid grid-auto" style={{ margin: '14px 0' }}>
                 {[
-                  { label: 'Avg Calories', value: `${report.avgDailyCalories?.toFixed(0)} kcal`, icon: '🔥' },
-                  { label: 'Avg Protein', value: `${report.avgDailyProtein?.toFixed(1)}g`, icon: '💪' },
-                  { label: 'Avg Water', value: `${report.avgDailyWaterMl?.toFixed(0)}ml`, icon: '💧' },
+                  { label: 'Avg calories', value: `${Number(report.avgDailyCalories || 0).toFixed(0)} kcal`, icon: '🔥' },
+                  { label: 'Avg protein', value: `${Number(report.avgDailyProtein || 0).toFixed(1)} g`, icon: '💪' },
+                  { label: 'Avg water', value: `${Number(report.avgDailyWaterMl || 0).toFixed(0)} ml`, icon: '💧' },
                   { label: 'Workouts', value: report.totalWorkouts, icon: '🏋️' },
                 ].map(s => (
-                  <div key={s.label} style={{ padding: '14px 16px', textAlign: 'center', borderRight: '1px solid #f0f0f0' }}>
-                    <div style={{ fontSize: 18 }}>{s.icon}</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, margin: '4px 0 2px' }}>{s.value}</div>
-                    <div style={{ fontSize: 11, color: '#888' }}>{s.label}</div>
+                  <div key={s.label} className="stat compact">
+                    <span className="ico">{s.icon}</span>
+                    <span className="value" style={{ fontSize: 17 }}>{s.value}</span>
+                    <span className="label">{s.label}</span>
                   </div>
                 ))}
               </div>
 
-              {/* AI Feedback */}
-              <div style={{ padding: 20 }}>
-                <h4 style={{ margin: '0 0 12px', color: '#4CAF50' }}>
-                  🤖 AI Wellness Coach Feedback
-                </h4>
-                <div style={{
-                  background: '#f8fff8', borderLeft: '3px solid #4CAF50',
-                  borderRadius: '0 8px 8px 0', padding: '14px 16px',
-                  fontSize: 14, lineHeight: 1.7, color: '#444',
-                  whiteSpace: 'pre-line'
-                }}>
-                  {report.aiFeedback}
-                </div>
-              </div>
-            </div>
+              <h4 style={{ fontSize: 13, color: 'var(--brand-text)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>🤖 Coach's feedback</h4>
+              <div className="feedback">{report.aiFeedback}</div>
+            </Card>
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }
