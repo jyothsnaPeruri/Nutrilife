@@ -46,7 +46,7 @@ public class EmailService {
 
                     <div style="display: grid; background: #f9f9f9; border-radius: 12px; padding: 20px; margin: 20px 0;">
                         <h3 style="color: #4CAF50; margin-top: 0;">📊 This Week's Stats</h3>
-                        <table style="width: 100%; border-collapse: collapse;">
+                        <table style="width: 100%%; border-collapse: collapse;">
                             <tr style="border-bottom: 1px solid #eee;">
                                 <td style="padding: 8px 0; color: #666;">🔥 Avg Daily Calories</td>
                                 <td style="padding: 8px 0; font-weight: bold; text-align: right;">%.0f kcal</td>

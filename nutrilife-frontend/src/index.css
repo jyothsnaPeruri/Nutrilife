@@ -121,11 +121,11 @@ button { cursor: pointer; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .bottomnav { display: none; }
-.mobile-only { display: none; }
+.mobile-only { display: none !important; }
 
 @media (max-width: 860px) {
   .sidebar { display: none; }
-  .mobile-only { display: inline-flex; }
+  .mobile-only { display: inline-flex !important; }
   .topbar { padding: 12px 16px; }
   .page { padding: 16px 16px 90px; }
   .bottomnav {
@@ -288,3 +288,9 @@ button { cursor: pointer; }
 .small { font-size: 12.5px; }
 .mt { margin-top: 14px; }
 .mb { margin-bottom: 14px; }
+
+/* ---------- Server wake-up notice (free hosting sleeps when idle) ---------- */
+.wake { display: flex; align-items: center; gap: 10px; padding: 10px 13px; border-radius: 12px; font-size: 13px; margin-bottom: 14px; background: var(--info-soft); color: var(--info); }
+.wake.ready { background: var(--brand-soft); color: var(--brand-text); }
+.divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 4px 0; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }

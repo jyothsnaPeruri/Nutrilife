@@ -1,0 +1,23 @@
+# Render Blueprint - Spring Boot API on Render's free plan, database on free Neon PostgreSQL.
+services:
+  - type: web
+    name: nutrilife-api
+    runtime: docker
+    rootDir: nutrilife-backend
+    plan: free
+    region: singapore
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: CLAUDE_API_KEY
+        sync: false

@@ -1,0 +1,6 @@
+target
+.idea
+.vscode
+*.iml
+compile-error.txt
+src/main/resources/application.properties

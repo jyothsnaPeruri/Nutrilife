@@ -4,6 +4,9 @@ import useAppStore from '../store/appStore';
 import { apiFetch } from '../services/api';
 import { Alert, Button, Field, Input } from '../components/ui';
 import AuthSide from '../components/AuthSide';
+import useServerWake from '../hooks/useServerWake';
+
+const DEMO = { email: 'demo@nutrilife.dev', password: 'Demo@1234' };
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -11,13 +14,13 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAppStore();
   const navigate = useNavigate();
+  const server = useServerWake();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const signIn = async (credentials) => {
     setLoading(true);
     setError('');
     try {
-      const response = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(form) });
+      const response = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
       const data = await response.json();
       if (!response.ok) {
         setError(data.error || 'Login failed');
@@ -32,6 +35,16 @@ export default function Login() {
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    signIn(form);
+  };
+
+  const tryDemo = () => {
+    setForm(DEMO);
+    signIn(DEMO);
+  };
+
   return (
     <div className="auth">
       <AuthSide />
@@ -40,7 +53,11 @@ export default function Login() {
           <div className="brand" style={{ padding: 0 }}><span className="brand-mark">🌿</span> NutriLife</div>
           <h1>Welcome back</h1>
           <p className="sub">Sign in to see today's progress.</p>
+          {server === 'waking' && <div className="wake"><span className="spinner" /> Waking up the server — free hosting sleeps when idle, this can take up to a minute.</div>}
+          {server === 'woke' && <div className="wake ready">✓ Server is awake.</div>}
           <Alert>{error}</Alert>
+          <Button type="button" variant="ghost" block onClick={tryDemo} disabled={loading}>🌿 Try the demo account</Button>
+          <div className="divider">or sign in</div>
           <form onSubmit={handleSubmit}>
             <Field label="Email">
               <Input type="email" placeholder="you@example.com" value={form.email} autoComplete="email"
